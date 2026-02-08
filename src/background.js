@@ -130,13 +130,16 @@
 
       // Step 1: Extract player data from page's MAIN world
       var playerData = await extractPlayerData(tab.id);
+      console.log('[SVD-BG] MAIN world result:', playerData ? 'OK' : 'null',
+        playerData ? 'captions=' + !!playerData.captions : '',
+        playerData && playerData.videoDetails ? 'video=' + playerData.videoDetails.videoId : '');
 
       // Step 2: Send player data to content script for transcript fetch
       var msg = { type: 'extractTranscript', playerData: playerData };
 
+      var csResponse;
       try {
-        var response = await chrome.tabs.sendMessage(tab.id, msg);
-        sendResponse(response);
+        csResponse = await chrome.tabs.sendMessage(tab.id, msg);
       } catch (err) {
         console.log('[SVD-BG] Content script not ready, injecting:', err.message);
         try {
@@ -144,13 +147,15 @@
             target: { tabId: tab.id },
             files: ['config.js', 'content.js']
           });
-          await new Promise(function (r) { setTimeout(r, 200); });
-          var retryResponse = await chrome.tabs.sendMessage(tab.id, msg);
-          sendResponse(retryResponse);
+          await new Promise(function (r) { setTimeout(r, 500); });
+          csResponse = await chrome.tabs.sendMessage(tab.id, msg);
         } catch (injectErr) {
           sendResponse({ success: false, error: 'injectionFailed', message: injectErr.message });
+          return;
         }
       }
+      console.log('[SVD-BG] Content script response:', JSON.stringify(csResponse).substring(0, 200));
+      sendResponse(csResponse);
     } catch (err) {
       sendResponse({ success: false, error: 'backgroundError', message: err.message });
     }

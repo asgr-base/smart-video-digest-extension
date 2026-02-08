@@ -501,27 +501,36 @@
       console.log('[SVD] handleExtractTranscript: playerData from BG=', !!playerData,
         playerData ? 'captions=' + !!playerData.captions : '');
 
-      // Use player data from background (MAIN world), fallback to HTML parsing
+      var videoId = getVideoIdFromURL();
+      var usedSources = [];
+
+      // Source 1: MAIN world data from background
+      if (playerData && playerData.captions) {
+        usedSources.push('main-world');
+      }
+
+      // Source 2: HTML fallback
       if (!playerData || !playerData.captions) {
         console.log('[SVD] Trying HTML fallback...');
         var htmlData = await fetchPlayerDataFromHTML();
-        if (htmlData) {
+        if (htmlData && htmlData.captions) {
           playerData = htmlData;
+          usedSources.push('html');
         }
       }
 
-      // If still no captions, try innertube player API
+      // Source 3: innertube player API
       if (!playerData || !playerData.captions) {
-        var videoId = getVideoIdFromURL();
         if (videoId) {
           console.log('[SVD] Trying innertube API for video:', videoId);
           var apiData = await fetchPlayerDataFromAPI(videoId);
-          if (apiData) {
+          if (apiData && apiData.captions) {
             var existingChapters = playerData ? playerData.chaptersData : null;
             playerData = apiData;
             if (existingChapters) {
               playerData.chaptersData = existingChapters;
             }
+            usedSources.push('innertube');
           }
         }
       }
@@ -530,8 +539,25 @@
         return { success: false, error: 'noPlayerData' };
       }
 
+      console.log('[SVD] Player data sources tried:', usedSources.join(', '));
+
       var metadata = getVideoMetadata(playerData);
       var transcript = await fetchTranscript(playerData);
+
+      // If transcript fetch failed and we haven't tried innertube yet, retry with fresh URLs
+      if ((!transcript || transcript.segments.length === 0) &&
+          usedSources.indexOf('innertube') === -1 && videoId) {
+        console.log('[SVD] Transcript fetch failed, retrying with innertube API...');
+        var freshData = await fetchPlayerDataFromAPI(videoId);
+        if (freshData && freshData.captions) {
+          transcript = await fetchTranscript(freshData);
+          if (transcript) {
+            // Use fresh metadata too
+            metadata = getVideoMetadata(freshData);
+          }
+        }
+      }
+
       if (!transcript || transcript.segments.length === 0) {
         return { success: false, error: 'noSubtitles', metadata: metadata };
       }
