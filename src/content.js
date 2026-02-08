@@ -6,14 +6,27 @@
 
   var config = globalThis.SVD_CONFIG;
 
-  // --- Fallback: fetch page HTML and parse player data ---
+  // --- Get video ID from current URL ---
+  function getVideoIdFromURL() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      return params.get('v') || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // --- Fallback 1: fetch page HTML and parse player data ---
   async function fetchPlayerDataFromHTML() {
     try {
       var resp = await fetch(window.location.href);
       var html = await resp.text();
 
       var playerData = extractJSONVar(html, 'ytInitialPlayerResponse');
-      if (!playerData) return null;
+      if (!playerData) {
+        console.warn('[SVD] Could not extract ytInitialPlayerResponse from HTML');
+        return null;
+      }
 
       var chaptersData = null;
       var initialData = extractJSONVar(html, 'ytInitialData');
@@ -32,19 +45,56 @@
         } catch (e) { /* ignore */ }
       }
 
+      console.log('[SVD] HTML fallback: captions=', !!playerData.captions);
       return {
         captions: playerData.captions || null,
         videoDetails: playerData.videoDetails || null,
         chaptersData: chaptersData
       };
     } catch (e) {
+      console.warn('[SVD] fetchPlayerDataFromHTML failed:', e.message);
+      return null;
+    }
+  }
+
+  // --- Fallback 2: YouTube innertube player API ---
+  async function fetchPlayerDataFromAPI(videoId) {
+    try {
+      var response = await fetch('/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: videoId,
+          context: {
+            client: {
+              clientName: 'WEB',
+              clientVersion: '2.20260101.00.00',
+              hl: document.documentElement.lang || 'en'
+            }
+          }
+        })
+      });
+      if (!response.ok) {
+        console.warn('[SVD] innertube API returned', response.status);
+        return null;
+      }
+      var data = await response.json();
+      console.log('[SVD] innertube API: captions=', !!data.captions,
+        'tracks=', data.captions && data.captions.playerCaptionsTracklistRenderer
+          ? data.captions.playerCaptionsTracklistRenderer.captionTracks.length : 0);
+      return {
+        captions: data.captions || null,
+        videoDetails: data.videoDetails || null,
+        chaptersData: null
+      };
+    } catch (e) {
+      console.warn('[SVD] fetchPlayerDataFromAPI failed:', e.message);
       return null;
     }
   }
 
   // --- Extract JSON variable from HTML string ---
   function extractJSONVar(html, varName) {
-    // Try multiple patterns YouTube may use
     var patterns = ['var ' + varName + ' = ', varName + ' = '];
     for (var p = 0; p < patterns.length; p++) {
       var idx = html.indexOf(patterns[p]);
@@ -59,7 +109,7 @@
         try {
           return JSON.parse(html.substring(idx, semiIdx + 1));
         } catch (e) {
-          semiIdx++; // try next occurrence
+          semiIdx++;
         }
       }
 
@@ -97,11 +147,13 @@
   // --- Extract caption tracks and fetch transcript ---
   async function fetchTranscript(playerData) {
     if (!playerData || !playerData.captions) {
+      console.warn('[SVD] No captions in player data');
       return null;
     }
 
     var trackList = playerData.captions.playerCaptionsTracklistRenderer;
     if (!trackList || !trackList.captionTracks || trackList.captionTracks.length === 0) {
+      console.warn('[SVD] No caption tracks found');
       return null;
     }
 
@@ -110,15 +162,28 @@
     var selectedTrack = tracks.find(function (t) { return t.kind !== 'asr'; }) || tracks[0];
 
     var url = selectedTrack.baseUrl;
-    if (!url) return null;
+    if (!url) {
+      console.warn('[SVD] Caption track has no baseUrl');
+      return null;
+    }
 
-    // Try json3 format first, then fall back to XML
+    console.log('[SVD] Caption URL:', url.substring(0, 100) + '...');
+    console.log('[SVD] Track:', selectedTrack.languageCode, selectedTrack.kind || 'manual');
+
+    // Try json3 format first, then srv1 XML, then default XML
     var segments = await fetchCaptionsJSON3(url);
     if (!segments) {
-      segments = await fetchCaptionsXML(url);
+      segments = await fetchCaptionsXML(url, 'srv1');
     }
-    if (!segments || segments.length === 0) return null;
+    if (!segments) {
+      segments = await fetchCaptionsXML(url, null);
+    }
+    if (!segments || segments.length === 0) {
+      console.warn('[SVD] All caption fetch methods failed');
+      return null;
+    }
 
+    console.log('[SVD] Got', segments.length, 'caption segments');
     return {
       segments: segments,
       language: selectedTrack.languageCode || '',
@@ -132,67 +197,151 @@
     try {
       var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
       var response = await fetch(baseUrl + separator + 'fmt=json3');
-      if (!response.ok) return null;
+      if (!response.ok) {
+        console.warn('[SVD] json3 fetch status:', response.status);
+        return null;
+      }
 
-      var data = await response.json();
-      if (!data || !data.events) return null;
+      var text = await response.text();
+      if (!text || text.length < 10) {
+        console.warn('[SVD] json3 response empty or too short');
+        return null;
+      }
+
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.warn('[SVD] json3 parse failed, first 200 chars:', text.substring(0, 200));
+        return null;
+      }
+
+      if (!data || !data.events) {
+        console.warn('[SVD] json3 data has no events');
+        return null;
+      }
 
       var segments = [];
       for (var i = 0; i < data.events.length; i++) {
         var event = data.events[i];
         if (!event.segs) continue;
 
-        var text = '';
+        var captionText = '';
         for (var j = 0; j < event.segs.length; j++) {
-          text += event.segs[j].utf8 || '';
+          captionText += event.segs[j].utf8 || '';
         }
-        text = text.replace(/\n/g, ' ').trim();
-        if (!text) continue;
+        captionText = captionText.replace(/\n/g, ' ').trim();
+        if (!captionText) continue;
 
         segments.push({
           startMs: event.tStartMs || 0,
           durationMs: event.dDurationMs || 0,
-          text: text
+          text: captionText
         });
       }
       return segments.length > 0 ? segments : null;
     } catch (e) {
-      console.warn('[SVD] json3 caption fetch failed:', e.message);
+      console.warn('[SVD] json3 caption fetch error:', e.message);
       return null;
     }
   }
 
-  // --- Fetch captions in XML format (fallback) ---
-  async function fetchCaptionsXML(baseUrl) {
+  // --- Fetch captions in XML format ---
+  async function fetchCaptionsXML(baseUrl, fmt) {
     try {
-      var response = await fetch(baseUrl);
-      if (!response.ok) return null;
+      var url = baseUrl;
+      if (fmt) {
+        var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+        url = baseUrl + separator + 'fmt=' + fmt;
+      }
+
+      var response = await fetch(url);
+      if (!response.ok) {
+        console.warn('[SVD] XML fetch status:', response.status, 'fmt=' + (fmt || 'default'));
+        return null;
+      }
 
       var text = await response.text();
+      if (!text || text.length < 10) {
+        console.warn('[SVD] XML response empty');
+        return null;
+      }
+
       var parser = new DOMParser();
       var doc = parser.parseFromString(text, 'text/xml');
-      var textNodes = doc.querySelectorAll('text');
-      if (!textNodes || textNodes.length === 0) return null;
 
-      var segments = [];
-      for (var i = 0; i < textNodes.length; i++) {
-        var node = textNodes[i];
-        var startSec = parseFloat(node.getAttribute('start') || '0');
-        var durSec = parseFloat(node.getAttribute('dur') || '0');
-        var caption = (node.textContent || '').replace(/\n/g, ' ').trim();
-        if (!caption) continue;
+      // Try <text> elements (srv1 / legacy format)
+      var segments = parseXMLTextNodes(doc);
+      if (segments) return segments;
 
-        segments.push({
-          startMs: Math.round(startSec * 1000),
-          durationMs: Math.round(durSec * 1000),
-          text: caption
-        });
-      }
-      return segments.length > 0 ? segments : null;
+      // Try <p> elements (srv3 format)
+      segments = parseXMLPNodes(doc);
+      if (segments) return segments;
+
+      console.warn('[SVD] XML has no recognized caption elements, first 300 chars:', text.substring(0, 300));
+      return null;
     } catch (e) {
-      console.warn('[SVD] XML caption fetch failed:', e.message);
+      console.warn('[SVD] XML caption fetch error:', e.message);
       return null;
     }
+  }
+
+  // Parse <text start="0" dur="3.5">caption</text> (srv1 format)
+  function parseXMLTextNodes(doc) {
+    var nodes = doc.querySelectorAll('text');
+    if (!nodes || nodes.length === 0) return null;
+
+    var segments = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var startSec = parseFloat(node.getAttribute('start') || '0');
+      var durSec = parseFloat(node.getAttribute('dur') || '0');
+      var caption = decodeHTMLEntities(node.textContent || '');
+      caption = caption.replace(/\n/g, ' ').trim();
+      if (!caption) continue;
+
+      segments.push({
+        startMs: Math.round(startSec * 1000),
+        durationMs: Math.round(durSec * 1000),
+        text: caption
+      });
+    }
+    return segments.length > 0 ? segments : null;
+  }
+
+  // Parse <p t="0" d="3500"><s>caption</s></p> (srv3 format)
+  function parseXMLPNodes(doc) {
+    var nodes = doc.querySelectorAll('p');
+    if (!nodes || nodes.length === 0) return null;
+
+    var segments = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var tMs = parseInt(node.getAttribute('t') || '0', 10);
+      var dMs = parseInt(node.getAttribute('d') || '0', 10);
+      var caption = decodeHTMLEntities(node.textContent || '');
+      caption = caption.replace(/\n/g, ' ').trim();
+      if (!caption) continue;
+
+      segments.push({
+        startMs: tMs,
+        durationMs: dMs,
+        text: caption
+      });
+    }
+    return segments.length > 0 ? segments : null;
+  }
+
+  // Decode common HTML entities without innerHTML
+  function decodeHTMLEntities(text) {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/');
   }
 
   // --- Extract chapters from video ---
@@ -349,10 +498,34 @@
   // --- Main extraction handler ---
   async function handleExtractTranscript(playerData) {
     try {
+      console.log('[SVD] handleExtractTranscript: playerData from BG=', !!playerData,
+        playerData ? 'captions=' + !!playerData.captions : '');
+
       // Use player data from background (MAIN world), fallback to HTML parsing
-      if (!playerData) {
-        playerData = await fetchPlayerDataFromHTML();
+      if (!playerData || !playerData.captions) {
+        console.log('[SVD] Trying HTML fallback...');
+        var htmlData = await fetchPlayerDataFromHTML();
+        if (htmlData) {
+          playerData = htmlData;
+        }
       }
+
+      // If still no captions, try innertube player API
+      if (!playerData || !playerData.captions) {
+        var videoId = getVideoIdFromURL();
+        if (videoId) {
+          console.log('[SVD] Trying innertube API for video:', videoId);
+          var apiData = await fetchPlayerDataFromAPI(videoId);
+          if (apiData) {
+            var existingChapters = playerData ? playerData.chaptersData : null;
+            playerData = apiData;
+            if (existingChapters) {
+              playerData.chaptersData = existingChapters;
+            }
+          }
+        }
+      }
+
       if (!playerData) {
         return { success: false, error: 'noPlayerData' };
       }
