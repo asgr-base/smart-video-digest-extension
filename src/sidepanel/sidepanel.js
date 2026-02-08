@@ -264,6 +264,23 @@
     return 'en';
   }
 
+  // --- Summarize Button State ---
+  function markSummarized() {
+    el.summarizeBtn.disabled = true;
+    var span = el.summarizeBtn.querySelector('span[data-i18n]');
+    if (span) {
+      span.textContent = chrome.i18n.getMessage('summarizedButton') || 'Summarized';
+    }
+  }
+
+  function resetSummarizeBtn() {
+    el.summarizeBtn.disabled = false;
+    var span = el.summarizeBtn.querySelector('span[data-i18n]');
+    if (span) {
+      span.textContent = chrome.i18n.getMessage('summarizeButton') || 'Summarize this video';
+    }
+  }
+
   // --- URL Accessibility ---
   function isYouTubeWatch(url) {
     if (!url) return false;
@@ -283,7 +300,7 @@
       el.summarizeBtn.disabled = true;
       return false;
     }
-    el.summarizeBtn.disabled = false;
+    resetSummarizeBtn();
     hideStatus();
     return true;
   }
@@ -332,6 +349,7 @@
       clearElement(el.chatHistory);
     }
 
+    markSummarized();
     return true;
   }
 
@@ -490,14 +508,18 @@
         var kpText = combinedText.length > config.TEXT_LIMITS.PROMPT_API_MAX_CHARS
           ? combinedText.substring(0, config.TEXT_LIMITS.PROMPT_API_MAX_CHARS) + config.TEXT_LIMITS.TRUNCATION_SUFFIX
           : combinedText;
+        var kpLangEN = outputLang !== 'auto'
+          ? (config.LANGUAGE_NAMES_FOR_PROMPT[outputLang] || 'English')
+          : 'the same language as the content';
         var kpPrompt = 'Summarize the following video content as key points (3-7 bullet points).' +
           '\nEach bullet MUST start with an importance tag: [HIGH], [MEDIUM], or [LOW].' +
-          '\nFormat: - [HIGH] Most important point here\n\n' +
+          '\nFormat: - [HIGH] Most important point here' +
+          '\nWrite your response in ' + kpLangEN + '.\n\n' +
           sharedContext +
           '\n\nContent:\n' + kpText;
         try {
           results.keyPoints = await runPromptApi(
-            'You are a summarization assistant.', kpPrompt, el.keyPointsContent, outputLang
+            'You are a summarization assistant. Always write in ' + kpLangEN + '.', kpPrompt, el.keyPointsContent, outputLang
           );
           results.keyPoints = repairImportanceTags(results.keyPoints);
           renderKeyPointsWithImportance(results.keyPoints, el.keyPointsContent);
@@ -523,7 +545,7 @@
         }, combinedText, el.keyPointsContent);
       }
 
-      el.summarizeBtn.disabled = false;
+      markSummarized();
 
       // Cache results
       if (tabId) {
@@ -1261,7 +1283,7 @@
               'Open a YouTube video to summarize it.');
             return;
           }
-          el.summarizeBtn.disabled = false;
+          resetSummarizeBtn();
           hideStatus();
           if (currentSettings.autoSummarize) {
             handleSummarize();

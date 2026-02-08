@@ -15,6 +15,10 @@
     "message": "Resumir este video",
     "description": "Bot\u00f3n de acci\u00f3n principal"
   },
+  "summarizedButton": {
+    "message": "Resumido",
+    "description": "Etiqueta del bot\u00f3n despu\u00e9s de completar el resumen"
+  },
   "tldrHeading": {
     "message": "TL;DR",
     "description": "Encabezado de la secci\u00f3n TL;DR"
