@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="optionsTitle">Smart Video Digest Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="svd-options">
+    <h1 data-i18n="optionsTitle">Smart Video Digest Settings</h1>
+
+    <!-- Summary Length -->
+    <div class="svd-option-group">
+      <label data-i18n="optionsSummaryLength">Summary length</label>
+      <select id="summaryLength">
+        <option value="short" data-i18n="lengthShort">Short</option>
+        <option value="medium" data-i18n="lengthMedium">Medium</option>
+        <option value="long" data-i18n="lengthLong">Long</option>
+      </select>
+    </div>
+
+    <!-- Output Language -->
+    <div class="svd-option-group">
+      <label data-i18n="optionsOutputLanguage">Default output language</label>
+      <select id="outputLanguage">
+        <option value="auto" data-i18n="langAuto">Auto</option>
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
+    </div>
+
+    <!-- Auto Summarize -->
+    <div class="svd-option-group svd-option-checkbox">
+      <label>
+        <input type="checkbox" id="autoSummarize">
+        <span data-i18n="optionsAutoSummarize">Auto-summarize on tab switch</span>
+      </label>
+      <p class="svd-option-hint" data-i18n="optionsAutoSummarizeHint">Automatically summarize when switching to a different YouTube tab while the side panel is open.</p>
+    </div>
+
+    <!-- Keyboard Shortcut -->
+    <div class="svd-option-group svd-option-shortcut">
+      <label data-i18n="optionsShortcut">Keyboard shortcut</label>
+      <div class="svd-shortcut-display">
+        <kbd id="shortcutKey"></kbd>
+        <button id="changeShortcutBtn" class="svd-link-btn" data-i18n="optionsChangeShortcut">Change</button>
+      </div>
+      <p class="svd-option-hint" id="shortcutNotSet" data-i18n="optionsShortcutNotSet" style="display:none">No shortcut assigned. Click Change to set one.</p>
+    </div>
+
+    <!-- Privacy & AI Info -->
+    <div class="svd-option-group svd-privacy-info">
+      <label data-i18n="optionsPrivacyHeading">Privacy & AI</label>
+      <div class="svd-privacy-details">
+        <p data-i18n="optionsPrivacyModel">This extension uses Gemini Nano, Chrome's built-in on-device AI model.</p>
+        <ul>
+          <li data-i18n="optionsPrivacyLocal">All processing happens locally on your device</li>
+          <li data-i18n="optionsPrivacyNoServer">No video data is sent to external servers</li>
+          <li data-i18n="optionsPrivacyNoTraining">The AI model does not learn from or store your data</li>
+          <li data-i18n="optionsPrivacyOffline">Works offline after the initial model download</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="svd-option-actions">
+      <button id="resetBtn" class="svd-reset-btn" data-i18n="optionsReset">Reset to defaults</button>
+    </div>
+
+    <!-- Status -->
+    <div id="statusMessage" class="svd-status-message svd-hidden"></div>
+
+    <!-- Version -->
+    <div class="svd-version">v1.0.0</div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

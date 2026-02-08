@@ -1,0 +1,212 @@
+:root {
+  --svd-primary: #1a73e8;
+  --svd-primary-light: #e8f0fe;
+  --svd-surface: #ffffff;
+  --svd-background: #f8f9fa;
+  --svd-text-primary: #202124;
+  --svd-text-secondary: #5f6368;
+  --svd-border: #dadce0;
+  --svd-success: #34a853;
+  --svd-error: #d93025;
+  --svd-radius: 8px;
+  --svd-font: 'Google Sans', 'Segoe UI', Roboto, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--svd-font);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--svd-text-primary);
+  background: var(--svd-background);
+  padding: 24px;
+}
+
+.svd-options {
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--svd-surface);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.svd-options h1 {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--svd-border);
+}
+
+.svd-option-group {
+  margin-bottom: 20px;
+}
+
+.svd-option-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--svd-text-secondary);
+  margin-bottom: 6px;
+}
+
+.svd-option-group select,
+.svd-option-group textarea {
+  width: 100%;
+  font-family: var(--svd-font);
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--svd-border);
+  border-radius: var(--svd-radius);
+  background: var(--svd-surface);
+  color: var(--svd-text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.svd-option-group select:focus,
+.svd-option-group textarea:focus {
+  border-color: var(--svd-primary);
+  box-shadow: 0 0 0 2px var(--svd-primary-light);
+}
+
+.svd-option-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.svd-option-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--svd-text-primary);
+  margin-bottom: 4px;
+}
+
+.svd-option-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--svd-primary);
+  cursor: pointer;
+}
+
+.svd-option-hint {
+  font-size: 12px;
+  color: var(--svd-text-secondary);
+  margin-top: 2px;
+  padding-left: 24px;
+}
+
+.svd-shortcut-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.svd-shortcut-display kbd {
+  display: inline-block;
+  padding: 4px 10px;
+  font-family: var(--svd-font);
+  font-size: 14px;
+  color: var(--svd-text-primary);
+  background: var(--svd-background);
+  border: 1px solid var(--svd-border);
+  border-radius: 6px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.svd-link-btn {
+  font-family: var(--svd-font);
+  font-size: 13px;
+  color: var(--svd-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.svd-link-btn:hover {
+  color: #1557b0;
+}
+
+.svd-option-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.svd-reset-btn {
+  font-family: var(--svd-font);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: 1px solid var(--svd-border);
+  border-radius: var(--svd-radius);
+  background: var(--svd-surface);
+  color: var(--svd-text-secondary);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.svd-reset-btn:hover {
+  background: var(--svd-background);
+}
+
+.svd-status-message {
+  margin-top: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-radius: var(--svd-radius);
+}
+
+.svd-status-message.svd-success {
+  background: #e6f4ea;
+  color: var(--svd-success);
+}
+
+.svd-status-message.svd-error {
+  background: #fce8e6;
+  color: var(--svd-error);
+}
+
+/* Privacy Info */
+.svd-privacy-details {
+  margin-top: 4px;
+  padding: 12px 14px;
+  background: var(--svd-background);
+  border: 1px solid var(--svd-border);
+  border-radius: var(--svd-radius);
+}
+
+.svd-privacy-details p {
+  font-size: 13px;
+  color: var(--svd-text-primary);
+  margin-bottom: 8px;
+}
+
+.svd-privacy-details ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.svd-privacy-details li {
+  font-size: 12px;
+  color: var(--svd-text-secondary);
+  margin-bottom: 3px;
+  line-height: 1.5;
+}
+
+.svd-hidden { display: none !important; }
+
+.svd-version {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--svd-text-secondary);
+}
