@@ -57,19 +57,21 @@
     }
   }
 
-  // --- Fallback 2: YouTube innertube player API ---
+  // --- Fallback 2: YouTube innertube player API (ANDROID client) ---
   async function fetchPlayerDataFromAPI(videoId) {
     try {
-      var response = await fetch('/youtubei/v1/player?prettyPrint=false', {
+      var response = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId: videoId,
           context: {
             client: {
-              clientName: 'WEB',
-              clientVersion: '2.20260101.00.00',
-              hl: document.documentElement.lang || 'en'
+              clientName: 'ANDROID',
+              clientVersion: '19.09.37',
+              hl: document.documentElement.lang || 'en',
+              gl: 'US',
+              androidSdkVersion: 30
             }
           }
         })
@@ -192,11 +194,19 @@
     };
   }
 
+  // --- Replace or append fmt parameter in caption URL ---
+  function setCaptionFmt(baseUrl, fmt) {
+    if (/[?&]fmt=/.test(baseUrl)) {
+      return baseUrl.replace(/([?&]fmt=)[^&]*/, '$1' + fmt);
+    }
+    var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+    return baseUrl + separator + 'fmt=' + fmt;
+  }
+
   // --- Fetch captions in json3 format ---
   async function fetchCaptionsJSON3(baseUrl) {
     try {
-      var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-      var response = await fetch(baseUrl + separator + 'fmt=json3');
+      var response = await fetch(setCaptionFmt(baseUrl, 'json3'));
       if (!response.ok) {
         console.warn('[SVD] json3 fetch status:', response.status);
         return null;
@@ -249,11 +259,7 @@
   // --- Fetch captions in XML format ---
   async function fetchCaptionsXML(baseUrl, fmt) {
     try {
-      var url = baseUrl;
-      if (fmt) {
-        var separator = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-        url = baseUrl + separator + 'fmt=' + fmt;
-      }
+      var url = fmt ? setCaptionFmt(baseUrl, fmt) : baseUrl;
 
       var response = await fetch(url);
       if (!response.ok) {
@@ -502,36 +508,36 @@
         playerData ? 'captions=' + !!playerData.captions : '');
 
       var videoId = getVideoIdFromURL();
-      var usedSources = [];
+      var captionSource = 'none';
+      var bgPlayerData = playerData; // preserve original for fallback
 
-      // Source 1: MAIN world data from background
-      if (playerData && playerData.captions) {
-        usedSources.push('main-world');
-      }
+      // Preserve chapter data from MAIN world (most reliable for chapters)
+      var chaptersData = playerData ? playerData.chaptersData : null;
 
-      // Source 2: HTML fallback
-      if (!playerData || !playerData.captions) {
-        console.log('[SVD] Trying HTML fallback...');
-        var htmlData = await fetchPlayerDataFromHTML();
-        if (htmlData && htmlData.captions) {
-          playerData = htmlData;
-          usedSources.push('html');
+      // Source 1 (Primary): innertube ANDROID API — most reliable for captions
+      if (videoId) {
+        console.log('[SVD] Trying innertube ANDROID API for video:', videoId);
+        var apiData = await fetchPlayerDataFromAPI(videoId);
+        if (apiData && apiData.captions) {
+          apiData.chaptersData = chaptersData;
+          playerData = apiData;
+          captionSource = 'innertube-android';
         }
       }
 
-      // Source 3: innertube player API
-      if (!playerData || !playerData.captions) {
-        if (videoId) {
-          console.log('[SVD] Trying innertube API for video:', videoId);
-          var apiData = await fetchPlayerDataFromAPI(videoId);
-          if (apiData && apiData.captions) {
-            var existingChapters = playerData ? playerData.chaptersData : null;
-            playerData = apiData;
-            if (existingChapters) {
-              playerData.chaptersData = existingChapters;
-            }
-            usedSources.push('innertube');
-          }
+      // Source 2: MAIN world data from background
+      if (captionSource === 'none' && playerData && playerData.captions) {
+        captionSource = 'main-world';
+      }
+
+      // Source 3: HTML fallback
+      if (captionSource === 'none') {
+        console.log('[SVD] Trying HTML fallback...');
+        var htmlData = await fetchPlayerDataFromHTML();
+        if (htmlData && htmlData.captions) {
+          if (chaptersData) htmlData.chaptersData = chaptersData;
+          playerData = htmlData;
+          captionSource = 'html';
         }
       }
 
@@ -539,22 +545,18 @@
         return { success: false, error: 'noPlayerData' };
       }
 
-      console.log('[SVD] Player data sources tried:', usedSources.join(', '));
+      console.log('[SVD] Caption source:', captionSource);
 
       var metadata = getVideoMetadata(playerData);
       var transcript = await fetchTranscript(playerData);
 
-      // If transcript fetch failed and we haven't tried innertube yet, retry with fresh URLs
+      // If primary source transcript fetch failed, try MAIN world / HTML caption URLs
       if ((!transcript || transcript.segments.length === 0) &&
-          usedSources.indexOf('innertube') === -1 && videoId) {
-        console.log('[SVD] Transcript fetch failed, retrying with innertube API...');
-        var freshData = await fetchPlayerDataFromAPI(videoId);
-        if (freshData && freshData.captions) {
-          transcript = await fetchTranscript(freshData);
-          if (transcript) {
-            // Use fresh metadata too
-            metadata = getVideoMetadata(freshData);
-          }
+          captionSource === 'innertube-android' && playerData.captions) {
+        // MAIN world data may have different (working) caption URLs
+        if (bgPlayerData && bgPlayerData.captions) {
+          console.log('[SVD] innertube captions failed, falling back to MAIN world URLs...');
+          transcript = await fetchTranscript(bgPlayerData);
         }
       }
 
