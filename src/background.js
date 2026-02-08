@@ -49,6 +49,62 @@
     openPanelAndSummarize(tab);
   });
 
+  // --- Extract player data from page's MAIN world ---
+  async function extractPlayerData(tabId) {
+    try {
+      var results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        world: 'MAIN',
+        func: function () {
+          try {
+            var p = window.ytInitialPlayerResponse;
+            if (!p) {
+              // Fallback: try ytplayer.config.args.raw_player_response
+              try {
+                if (window.ytplayer && window.ytplayer.config &&
+                    window.ytplayer.config.args &&
+                    window.ytplayer.config.args.raw_player_response) {
+                  p = window.ytplayer.config.args.raw_player_response;
+                }
+              } catch (e) {}
+            }
+            if (!p) return null;
+
+            var chaptersData = null;
+            try {
+              var d = window.ytInitialData;
+              if (d) {
+                var po = d.playerOverlays;
+                if (po && po.playerOverlayRenderer &&
+                    po.playerOverlayRenderer.decoratedPlayerBarRenderer) {
+                  var dpb = po.playerOverlayRenderer.decoratedPlayerBarRenderer
+                    .decoratedPlayerBarRenderer;
+                  if (dpb && dpb.playerBar &&
+                      dpb.playerBar.multiMarkersPlayerBarRenderer) {
+                    chaptersData = dpb.playerBar.multiMarkersPlayerBarRenderer.markersMap;
+                  }
+                }
+              }
+            } catch (e) {}
+
+            return {
+              captions: p.captions || null,
+              videoDetails: p.videoDetails || null,
+              chaptersData: chaptersData
+            };
+          } catch (e) {
+            return null;
+          }
+        }
+      });
+
+      return results && results[0] ? results[0].result : null;
+    } catch (err) {
+      console.warn('[SVD-BG] executeScript MAIN world failed:', err.message);
+      return null;
+    }
+  }
+
   // --- Message routing ---
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.type === 'extractTranscript') {
@@ -72,8 +128,14 @@
         return;
       }
 
+      // Step 1: Extract player data from page's MAIN world
+      var playerData = await extractPlayerData(tab.id);
+
+      // Step 2: Send player data to content script for transcript fetch
+      var msg = { type: 'extractTranscript', playerData: playerData };
+
       try {
-        var response = await chrome.tabs.sendMessage(tab.id, { type: 'extractTranscript' });
+        var response = await chrome.tabs.sendMessage(tab.id, msg);
         sendResponse(response);
       } catch (err) {
         console.log('[SVD-BG] Content script not ready, injecting:', err.message);
@@ -83,7 +145,7 @@
             files: ['config.js', 'content.js']
           });
           await new Promise(function (r) { setTimeout(r, 200); });
-          var retryResponse = await chrome.tabs.sendMessage(tab.id, { type: 'extractTranscript' });
+          var retryResponse = await chrome.tabs.sendMessage(tab.id, msg);
           sendResponse(retryResponse);
         } catch (injectErr) {
           sendResponse({ success: false, error: 'injectionFailed', message: injectErr.message });

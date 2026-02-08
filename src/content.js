@@ -6,41 +6,70 @@
 
   var config = globalThis.SVD_CONFIG;
 
-  // --- Extract ytInitialPlayerResponse from the page ---
-  function getPlayerResponse() {
-    return new Promise(function (resolve) {
-      var script = document.createElement('script');
-      script.textContent =
-        'document.currentScript.dataset.result = JSON.stringify(' +
-        '(function(){' +
-        'try{' +
-        'var p = window.ytInitialPlayerResponse;' +
-        'if(!p) return null;' +
-        'var chaptersData = null;' +
-        'try{' +
-        'var d = window.ytInitialData;' +
-        'if(d){' +
-        'var po = d.playerOverlays;' +
-        'if(po && po.playerOverlayRenderer && po.playerOverlayRenderer.decoratedPlayerBarRenderer){' +
-        'var dpb = po.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer;' +
-        'if(dpb && dpb.playerBar && dpb.playerBar.multiMarkersPlayerBarRenderer){' +
-        'chaptersData = dpb.playerBar.multiMarkersPlayerBarRenderer.markersMap;' +
-        '}' +
-        '}' +
-        '}' +
-        '}catch(e){}' +
-        'return {captions:p.captions||null, videoDetails:p.videoDetails||null, chaptersData:chaptersData};' +
-        '}catch(e){return null;}' +
-        '})()' +
-        ');';
-      document.documentElement.appendChild(script);
-      var result = null;
-      try {
-        result = JSON.parse(script.dataset.result || 'null');
-      } catch (e) { /* ignore */ }
-      script.remove();
-      resolve(result);
-    });
+  // --- Fallback: fetch page HTML and parse player data ---
+  async function fetchPlayerDataFromHTML() {
+    try {
+      var resp = await fetch(window.location.href);
+      var html = await resp.text();
+
+      var playerData = extractJSONVar(html, 'ytInitialPlayerResponse');
+      if (!playerData) return null;
+
+      var chaptersData = null;
+      var initialData = extractJSONVar(html, 'ytInitialData');
+      if (initialData) {
+        try {
+          var po = initialData.playerOverlays;
+          if (po && po.playerOverlayRenderer &&
+              po.playerOverlayRenderer.decoratedPlayerBarRenderer) {
+            var dpb = po.playerOverlayRenderer.decoratedPlayerBarRenderer
+              .decoratedPlayerBarRenderer;
+            if (dpb && dpb.playerBar &&
+                dpb.playerBar.multiMarkersPlayerBarRenderer) {
+              chaptersData = dpb.playerBar.multiMarkersPlayerBarRenderer.markersMap;
+            }
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      return {
+        captions: playerData.captions || null,
+        videoDetails: playerData.videoDetails || null,
+        chaptersData: chaptersData
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // --- Extract JSON variable from HTML string using bracket matching ---
+  function extractJSONVar(html, varName) {
+    var searchStr = 'var ' + varName + ' = ';
+    var idx = html.indexOf(searchStr);
+    if (idx === -1) return null;
+    idx += searchStr.length;
+
+    var depth = 0;
+    var inString = false;
+    var escapeNext = false;
+
+    for (var i = idx; i < html.length; i++) {
+      var ch = html.charAt(i);
+      if (escapeNext) { escapeNext = false; continue; }
+      if (ch === '\\' && inString) { escapeNext = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(html.substring(idx, i + 1));
+          } catch (e) { return null; }
+        }
+      }
+    }
+    return null;
   }
 
   // --- Extract caption tracks and fetch transcript ---
@@ -249,9 +278,12 @@
   }
 
   // --- Main extraction handler ---
-  async function handleExtractTranscript() {
+  async function handleExtractTranscript(playerData) {
     try {
-      var playerData = await getPlayerResponse();
+      // Use player data from background (MAIN world), fallback to HTML parsing
+      if (!playerData) {
+        playerData = await fetchPlayerDataFromHTML();
+      }
       if (!playerData) {
         return { success: false, error: 'noPlayerData' };
       }
@@ -304,7 +336,7 @@
   // --- Message listener ---
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.type === config.MESSAGES.EXTRACT_TRANSCRIPT) {
-      handleExtractTranscript().then(sendResponse);
+      handleExtractTranscript(message.playerData || null).then(sendResponse);
       return true;
     }
     if (message.type === 'seekVideo') {
