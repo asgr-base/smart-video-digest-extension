@@ -1315,12 +1315,26 @@
       }
     }
 
-    // Full Transcript
+    // Full Transcript — organized by chapters when available
     if (extractedVideoData.transcript && extractedVideoData.transcript.fullText) {
       lines.push('## ' + headingTranscript);
       lines.push('');
-      lines.push(extractedVideoData.transcript.fullText);
-      lines.push('');
+      if (chapters && chapters.length > 0) {
+        for (var k = 0; k < chapters.length; k++) {
+          var tch = chapters[k];
+          var tchTitle = tch.title ||
+            (chrome.i18n.getMessage('partLabel') || 'Part') + ' ' + (k + 1);
+          lines.push('### ' + tch.startLabel + ' - ' + tchTitle);
+          lines.push('');
+          if (tch.text) {
+            lines.push(tch.text);
+            lines.push('');
+          }
+        }
+      } else {
+        lines.push(extractedVideoData.transcript.fullText);
+        lines.push('');
+      }
     }
 
     return lines.join('\n');
