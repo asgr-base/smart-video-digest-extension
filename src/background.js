@@ -108,15 +108,26 @@
   // --- Message routing ---
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.type === 'extractTranscript') {
-      handleExtractTranscript(sendResponse);
+      handleExtractTranscript(message, sendResponse);
       return true;
     }
   });
 
-  async function handleExtractTranscript(sendResponse) {
+  async function handleExtractTranscript(message, sendResponse) {
     try {
-      var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      var tab = tabs[0];
+      var tab;
+      if (message.tabId) {
+        try {
+          tab = await chrome.tabs.get(message.tabId);
+        } catch (e) {
+          // Tab may have been closed, fall back to active tab
+          var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          tab = tabs[0];
+        }
+      } else {
+        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tab = tabs[0];
+      }
 
       if (!tab || !tab.id) {
         sendResponse({ success: false, error: 'noActiveTab' });
@@ -133,6 +144,19 @@
       console.log('[SVD-BG] MAIN world result:', playerData ? 'OK' : 'null',
         playerData ? 'captions=' + !!playerData.captions : '',
         playerData && playerData.videoDetails ? 'video=' + playerData.videoDetails.videoId : '');
+
+      // Verify MAIN world data matches the tab's current video (may be stale after SPA navigation)
+      try {
+        var tabUrl = new URL(tab.url);
+        var urlVideoId = tabUrl.searchParams.get('v');
+        if (playerData && playerData.videoDetails &&
+            playerData.videoDetails.videoId && urlVideoId &&
+            playerData.videoDetails.videoId !== urlVideoId) {
+          console.log('[SVD-BG] MAIN world data stale (got', playerData.videoDetails.videoId,
+            'expected', urlVideoId + '), discarding');
+          playerData = null;
+        }
+      } catch (e) { /* ignore URL parse error */ }
 
       // Step 2: Send player data to content script for transcript fetch
       var msg = { type: 'extractTranscript', playerData: playerData };
