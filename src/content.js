@@ -516,6 +516,16 @@
       var captionSource = 'none';
       var bgPlayerData = playerData; // preserve original for fallback
 
+      // Verify MAIN world data matches the current video (may be stale after SPA navigation)
+      if (playerData && playerData.videoDetails &&
+          playerData.videoDetails.videoId && videoId &&
+          playerData.videoDetails.videoId !== videoId) {
+        console.log('[SVD] MAIN world data is stale (videoId mismatch: got',
+          playerData.videoDetails.videoId, 'expected', videoId + '), discarding');
+        playerData = null;
+        bgPlayerData = null;
+      }
+
       // Preserve chapter data from MAIN world (most reliable for chapters)
       var chaptersData = playerData ? playerData.chaptersData : null;
 
@@ -544,6 +554,18 @@
           playerData = htmlData;
           captionSource = 'html';
         }
+      }
+
+      // If captions found but no chapters, fetch chapters from HTML separately
+      if (playerData && !playerData.chaptersData && captionSource !== 'html') {
+        console.log('[SVD] No chapters from current source, fetching from HTML...');
+        try {
+          var chData = await fetchPlayerDataFromHTML();
+          if (chData && chData.chaptersData) {
+            playerData.chaptersData = chData.chaptersData;
+            console.log('[SVD] Got chapters from HTML');
+          }
+        } catch (e) { /* ignore chapters error */ }
       }
 
       if (!playerData) {

@@ -219,7 +219,7 @@
   function extractTranscript() {
     return new Promise(function (resolve, reject) {
       chrome.runtime.sendMessage(
-        { type: config.MESSAGES.EXTRACT_TRANSCRIPT },
+        { type: config.MESSAGES.EXTRACT_TRANSCRIPT, tabId: currentTabId },
         function (response) {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
@@ -400,11 +400,20 @@
     saveCurrentTabQuizChat(currentTabId);
     currentTabId = tabId;
 
-    if (isSummarizing) return;
-
+    // Always update UI when switching tabs, even during summarization.
+    // The in-progress summarize will check currentTabId and skip rendering
+    // if the tab has changed.
     var accessible = await updateTabAccessibility(tabId);
     if (!accessible) {
       showFreshState();
+      return;
+    }
+
+    if (isSummarizing) {
+      // Show fresh state for the new tab; the in-flight summarization
+      // for the old tab will save to cache when it completes.
+      showFreshState();
+      resetSummarizeBtn();
       return;
     }
 
@@ -457,6 +466,12 @@
         chapterSummaries.push(summary || '');
       }
 
+      // If tab changed during chapter summarization, save to cache and abort rendering
+      if (currentTabId !== tabId) {
+        saveToCache(tabId, extractedVideoData, null, null, chapterSummaries);
+        return;
+      }
+
       // Render chapters with summaries
       if (chapters.length > 0) {
         el.chaptersSection.classList.remove('svd-hidden');
@@ -477,6 +492,10 @@
       }
 
       // Phase 3: Generate TL;DR and Key Points from combined summaries
+      if (currentTabId !== tabId) {
+        saveToCache(tabId, extractedVideoData, null, null, chapterSummaries);
+        return;
+      }
       showLoading(false);
       el.resultsArea.classList.remove('svd-hidden');
       el.tldrSection.classList.remove('svd-hidden');
@@ -545,11 +564,14 @@
         }, combinedText, el.keyPointsContent);
       }
 
-      markSummarized();
-
       // Cache results
       if (tabId) {
         saveToCache(tabId, extractedVideoData, results.tldr, results.keyPoints, chapterSummaries);
+      }
+
+      // Only mark as summarized if still on the same tab
+      if (currentTabId === tabId) {
+        markSummarized();
       }
 
     } catch (err) {
