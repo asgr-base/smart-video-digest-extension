@@ -50,6 +50,14 @@
   var speechSpeedIndex = 2; // default 1x
   var savedVoiceURI = '';
 
+  // --- Zoom Sync ---
+  function syncZoomWithTab(tabId) {
+    if (!tabId) return;
+    chrome.tabs.getZoom(tabId).then(function (zoomFactor) {
+      document.documentElement.style.zoom = zoomFactor;
+    }).catch(function () {});
+  }
+
   // --- Initialization ---
   async function init() {
     await loadSettings();
@@ -61,6 +69,7 @@
     var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tabs[0]) {
       currentTabId = tabs[0].id;
+      syncZoomWithTab(tabs[0].id);
       var accessible = await updateTabAccessibility(tabs[0].id);
       if (!accessible) return;
     }
@@ -401,6 +410,7 @@
     if (tabId === currentTabId) return;
     saveCurrentTabQuizChat(currentTabId);
     currentTabId = tabId;
+    syncZoomWithTab(tabId);
 
     // Always update UI when switching tabs, even during summarization.
     // The in-progress summarize will check currentTabId and skip rendering
@@ -1402,6 +1412,12 @@
 
     chrome.tabs.onActivated.addListener(function (activeInfo) {
       switchToTab(activeInfo.tabId);
+    });
+
+    chrome.tabs.onZoomChange.addListener(function (zoomChangeInfo) {
+      if (zoomChangeInfo.tabId === currentTabId) {
+        document.documentElement.style.zoom = zoomChangeInfo.newZoomFactor;
+      }
     });
 
     chrome.tabs.onUpdated.addListener(function (tabId, changeInfo) {
