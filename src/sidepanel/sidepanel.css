@@ -807,6 +807,23 @@ body {
   color: var(--svd-text-secondary);
 }
 
+/* Export Bar */
+.svd-export-bar {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--svd-border);
+  margin-top: 8px;
+}
+
+.svd-export-bar .svd-secondary-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.svd-export-bar .svd-secondary-btn svg {
+  vertical-align: -2px;
+}
+
 /* Chapters */
 .svd-chapters-content {
   display: flex;

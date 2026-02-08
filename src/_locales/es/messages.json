@@ -215,6 +215,18 @@
     "message": "Desarrollado con Gemini Nano \u2014 todo el procesamiento ocurre en tu dispositivo. No se env\u00edan datos a servidores externos.",
     "description": "Informaci\u00f3n de privacidad del AI en el panel lateral"
   },
+  "downloadMarkdown": {
+    "message": "Descargar Markdown",
+    "description": "Botón para descargar el resumen como archivo Markdown"
+  },
+  "downloadSuccess": {
+    "message": "¡Descargado!",
+    "description": "Notificación de descarga exitosa"
+  },
+  "fullTranscriptHeading": {
+    "message": "Transcripción completa",
+    "description": "Encabezado de la sección de transcripción completa en exportación Markdown"
+  },
   "optionsPrivacyHeading": {
     "message": "Privacidad e IA",
     "description": "Encabezado de la secci\u00f3n de privacidad en configuraci\u00f3n"
