@@ -215,6 +215,10 @@
     "message": "Desarrollado con Gemini Nano \u2014 todo el procesamiento ocurre en tu dispositivo. No se env\u00edan datos a servidores externos.",
     "description": "Informaci\u00f3n de privacidad del AI en el panel lateral"
   },
+  "chapterSummariesHeading": {
+    "message": "Resúmenes por capítulo",
+    "description": "Encabezado de la sección de resúmenes por capítulo en exportación Markdown"
+  },
   "downloadMarkdown": {
     "message": "Descargar Markdown",
     "description": "Botón para descargar el resumen como archivo Markdown"

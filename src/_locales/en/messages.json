@@ -215,6 +215,10 @@
     "message": "Powered by Gemini Nano \u2014 all processing happens on your device. No data is sent to external servers.",
     "description": "AI privacy info footer in side panel"
   },
+  "chapterSummariesHeading": {
+    "message": "Chapter Summaries",
+    "description": "Chapter summaries section heading in Markdown export"
+  },
   "downloadMarkdown": {
     "message": "Download Markdown",
     "description": "Button to download summary as Markdown file"
