@@ -365,8 +365,13 @@
             for (var j = 0; j < chapterList.length; j++) {
               var ch = chapterList[j].chapterRenderer;
               if (ch) {
+                var chTitle = '';
+                if (ch.title) {
+                  chTitle = ch.title.simpleText ||
+                    (ch.title.runs ? ch.title.runs.map(function(r) { return r.text; }).join('') : '');
+                }
                 chapters.push({
-                  title: ch.title ? (ch.title.simpleText || '') : '',
+                  title: chTitle,
                   startMs: ch.timeRangeStartMillis || 0
                 });
               }
