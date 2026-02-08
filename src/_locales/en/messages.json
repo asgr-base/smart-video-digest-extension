@@ -15,6 +15,10 @@
     "message": "Summarize this video",
     "description": "Main action button"
   },
+  "summarizedButton": {
+    "message": "Summarized",
+    "description": "Button label after summarization is complete"
+  },
   "tldrHeading": {
     "message": "TL;DR",
     "description": "TL;DR section heading"
