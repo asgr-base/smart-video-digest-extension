@@ -42,7 +42,8 @@
     generateQuizBtn: document.getElementById('generateQuizBtn'),
     quizContent: document.getElementById('quizContent'),
     speechSpeedBtn: document.getElementById('speechSpeedBtn'),
-    voiceSelect: document.getElementById('voiceSelect')
+    voiceSelect: document.getElementById('voiceSelect'),
+    downloadMdBtn: document.getElementById('downloadMdBtn')
   };
 
   var SPEECH_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
@@ -271,6 +272,7 @@
     if (span) {
       span.textContent = chrome.i18n.getMessage('summarizedButton') || 'Summarized';
     }
+    el.downloadMdBtn.disabled = false;
   }
 
   function resetSummarizeBtn() {
@@ -1162,6 +1164,7 @@
     clearElement(el.chaptersContent);
     el.resultsArea.classList.add('svd-hidden');
     el.chaptersSection.classList.add('svd-hidden');
+    el.downloadMdBtn.disabled = true;
     hideStatus();
   }
 
@@ -1251,6 +1254,98 @@
     speechSynthesis.speak(utterance);
   }
 
+  // --- Markdown Download ---
+  function generateMarkdown() {
+    if (!extractedVideoData || !extractedVideoData.metadata) return '';
+
+    var meta = extractedVideoData.metadata;
+    var videoUrl = 'https://www.youtube.com/watch?v=' + meta.videoId;
+    var transcriptLang = extractedVideoData.transcript ? extractedVideoData.transcript.language : null;
+    var outputLang = getOutputLanguage(transcriptLang);
+
+    // Use i18n headings matching output language
+    var headingTldr = chrome.i18n.getMessage('tldrHeading') || 'TL;DR';
+    var headingKeyPoints = chrome.i18n.getMessage('keyPointsHeading') || 'Key Points';
+    var headingChapters = chrome.i18n.getMessage('chaptersHeading') || 'Chapters';
+    var headingTranscript = chrome.i18n.getMessage('fullTranscriptHeading') || 'Full Transcript';
+
+    var lines = [];
+    lines.push('# ' + (meta.title || 'Untitled'));
+    lines.push('');
+    lines.push('**URL**: ' + videoUrl);
+    if (meta.author) lines.push('**Channel**: ' + meta.author);
+    if (meta.lengthSeconds) lines.push('**Duration**: ' + formatDuration(meta.lengthSeconds));
+    lines.push('');
+
+    // TL;DR
+    var tldrText = el.tldrContent.getAttribute('data-raw-text');
+    if (tldrText) {
+      lines.push('## ' + headingTldr);
+      lines.push('');
+      lines.push(tldrText);
+      lines.push('');
+    }
+
+    // Key Points
+    var keyPointsText = el.keyPointsContent.getAttribute('data-raw-text');
+    if (keyPointsText) {
+      lines.push('## ' + headingKeyPoints);
+      lines.push('');
+      lines.push(keyPointsText);
+      lines.push('');
+    }
+
+    // Chapters
+    var cached = tabCache[currentTabId];
+    var chapters = extractedVideoData.chapters;
+    var chapterSummaries = cached ? cached.chapterSummaries : null;
+    if (chapters && chapters.length > 0) {
+      lines.push('## ' + headingChapters);
+      lines.push('');
+      for (var i = 0; i < chapters.length; i++) {
+        var ch = chapters[i];
+        var chTitle = ch.title ||
+          (chrome.i18n.getMessage('partLabel') || 'Part') + ' ' + (i + 1);
+        lines.push('### ' + ch.startLabel + ' - ' + chTitle);
+        lines.push('');
+        if (chapterSummaries && chapterSummaries[i]) {
+          lines.push(chapterSummaries[i]);
+          lines.push('');
+        }
+      }
+    }
+
+    // Full Transcript
+    if (extractedVideoData.transcript && extractedVideoData.transcript.fullText) {
+      lines.push('## ' + headingTranscript);
+      lines.push('');
+      lines.push(extractedVideoData.transcript.fullText);
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+
+  function downloadMarkdown() {
+    var md = generateMarkdown();
+    if (!md) return;
+
+    var meta = extractedVideoData.metadata;
+    var filename = (meta.videoId || 'video') + '-summary.md';
+
+    var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(chrome.i18n.getMessage('downloadSuccess') || 'Downloaded!');
+  }
+
   function getErrorMessage(err) {
     var msg = err.message || String(err);
     var map = {
@@ -1272,6 +1367,7 @@
     el.summarizeBtn.addEventListener('click', function () { handleSummarize(); });
     el.customPromptBtn.addEventListener('click', handleCustomPrompt);
     el.generateQuizBtn.addEventListener('click', handleGenerateQuiz);
+    el.downloadMdBtn.addEventListener('click', downloadMarkdown);
 
     el.customPromptInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.isComposing) {
