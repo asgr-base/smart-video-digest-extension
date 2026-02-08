@@ -1,18 +1,40 @@
 # Smart Video Digest
 
-Summarize YouTube videos with chapters using Chrome's built-in AI (Gemini Nano) — fully on-device.
+**The only YouTube summarizer that works 100% on your device.**
+
+Summarize YouTube videos with chapters using Chrome's built-in AI (Gemini Nano). No account required. No API keys. No subscription. No data leaves your machine.
+
+## Why Smart Video Digest?
+
+Most YouTube summarizer extensions send your video data to external AI services (ChatGPT, Claude, etc.), requiring accounts, API keys, or paid subscriptions. Smart Video Digest takes a fundamentally different approach:
+
+- **Zero cloud dependency** — Uses Gemini Nano, Chrome's built-in on-device AI model
+- **No accounts or API keys** — Install and use immediately
+- **Complete privacy** — Your viewing data never leaves your device
+- **Works offline** — Summarize videos even without internet (after initial model download)
+- **Always free** — No usage limits, no tiered plans, no hidden costs
 
 ## Features
 
+### AI Summarization
 - **TL;DR + Key Points**: Get a quick summary and structured key points from any YouTube video
-- **Chapter-aware summarization**: Automatically detects video chapters and summarizes each one individually
+- **Chapter-aware summarization**: Automatically detects video chapters and summarizes each one individually — unlike most extensions that process the entire transcript as a single block
 - **Clickable timestamps**: Jump to any chapter directly from the summary
-- **Comprehension Quiz**: Test your understanding with AI-generated quiz questions
-- **Custom questions**: Ask anything about the video content
-- **Read aloud**: Listen to summaries with text-to-speech (voice & speed control)
+- **Custom questions**: Ask anything about the video content using the Prompt API
+
+### Active Learning
+- **Comprehension Quiz**: Test your understanding with AI-generated Q&A cards — based on retrieval practice research (Roediger & Karpicke, 2006) that improves long-term retention by up to 50%
+- **Read aloud**: Listen to summaries with text-to-speech (voice & speed selection)
+
+### Export & Integration
+- **Markdown export**: Download structured `.md` files with title, URL, TL;DR, key points, chapter-by-chapter summaries, and full transcript organized by chapter — ready for Obsidian, Notion, or any knowledge base
+- **Copy to clipboard**: One-click copy of any summary section
+
+### Workflow
 - **Multi-language output**: Summarize in Japanese, English, or Spanish regardless of video language
-- **100% on-device**: All AI processing happens locally via Gemini Nano — no data sent to servers
-- **Works offline**: After the initial model download, works without internet
+- **Keyboard shortcut**: Alt+Y to open and summarize instantly
+- **Context menu**: Right-click on any YouTube page to summarize
+- **Auto-summarize**: Automatically summarize when switching between YouTube tabs
 
 ## Requirements
 
@@ -38,22 +60,29 @@ Summarize YouTube videos with chapters using Chrome's built-in AI (Gemini Nano) 
 ## How It Works
 
 ```
-[Extension Icon / Alt+Y] → [Side Panel opens]
+[Extension Icon / Alt+Y / Right-click] → [Side Panel opens]
          ↓
-[Summarize Button] → [Content Script extracts transcript]
+[Content Script extracts transcript via innertube API]
          ↓
-[Chapter detection] → [Summarize each chapter via Summarizer API]
+[Chapter detection from ytInitialData or auto-split by duration]
          ↓
-[Combine summaries] → [Generate TL;DR + Key Points]
+[Summarize each chapter individually via Summarizer API]
+         ↓
+[Generate TL;DR (Summarizer API) + Key Points (Prompt API)]
          ↓
 [Streaming display in Side Panel]
+         ↓
+[Optional: Quiz / Custom Q&A / Markdown Export / Read Aloud]
 ```
 
-1. **Transcript extraction**: Reads YouTube's caption tracks (same-origin fetch, no external API)
-2. **Chapter detection**: Parses `ytInitialData` for chapter markers, or auto-splits by duration
-3. **Hierarchical summarization**: Each chapter summarized individually, then combined for overall summary
+### Technical Details
+
+1. **Transcript extraction**: Uses YouTube's innertube API (ANDROID client) with multiple fallback strategies — XML caption fetch, MAIN world script injection for player data. Handles YouTube SPA navigation with stale data detection.
+2. **Chapter detection**: Parses `ytInitialData` for chapter markers. Falls back to auto-splitting long transcripts by duration. Validates videoId to prevent cross-tab data contamination.
+3. **Hierarchical summarization**: Each chapter summarized individually, then combined for overall summary. Tab-specific caching ensures correct state across multiple YouTube tabs.
 4. **TL;DR**: Generated via Summarizer API from combined chapter summaries
-5. **Key Points**: Generated via Prompt API with importance-tagged bullet points
+5. **Key Points**: Generated via Prompt API with structured bullet points
+6. **Markdown export**: Generates structured Markdown with metadata, summaries, and full transcript organized by chapter boundaries
 
 ## Keyboard Shortcut
 
@@ -67,6 +96,7 @@ Access via the extension's options page:
 - **Summary length**: Short / Medium / Long
 - **Output language**: Auto / Japanese / English / Spanish
 - **Auto-summarize**: Automatically summarize when switching YouTube tabs
+- **Keyboard shortcut**: View current shortcut or change it
 
 ## File Structure
 
@@ -93,10 +123,14 @@ src/
 
 ## Privacy
 
-- All AI processing happens locally on your device via Gemini Nano
-- No video data is sent to external servers
-- The AI model does not learn from or store your data
-- Works offline after the initial model download
+Smart Video Digest is designed with privacy as a core principle, not an afterthought:
+
+- **On-device AI**: All summarization runs locally via Gemini Nano — no cloud AI services involved
+- **No external servers**: Video data, transcripts, and summaries never leave your machine
+- **No data collection**: The AI model does not learn from or store your data
+- **No tracking**: Zero analytics, telemetry, or external network requests
+- **Offline capable**: Works without internet after the initial model download
+- **Open source**: Full source code available for inspection
 
 ## License
 
