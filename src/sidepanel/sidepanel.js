@@ -1266,7 +1266,7 @@
     // Use i18n headings matching output language
     var headingTldr = chrome.i18n.getMessage('tldrHeading') || 'TL;DR';
     var headingKeyPoints = chrome.i18n.getMessage('keyPointsHeading') || 'Key Points';
-    var headingChapters = chrome.i18n.getMessage('chaptersHeading') || 'Chapters';
+    var headingChapters = chrome.i18n.getMessage('chapterSummariesHeading') || 'Chapter Summaries';
     var headingTranscript = chrome.i18n.getMessage('fullTranscriptHeading') || 'Full Transcript';
 
     var lines = [];
